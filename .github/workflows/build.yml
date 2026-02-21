@@ -1,4 +1,4 @@
-name: Build Windows Executable
+name: Build Executables (Windows & macOS)
 
 on:
   push:
@@ -8,65 +8,125 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  build-windows:
     runs-on: windows-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
+
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.11'
-    
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install pyinstaller
-    
+
     - name: Build executable
       run: |
         pyinstaller --onefile --windowed --name=PharmacyInventoryCalculator pharmacy_inventory_app.py
-    
-    - name: Upload executable as artifact
+
+    - name: Upload Windows artifact
       uses: actions/upload-artifact@v4
       with:
-        name: PharmacyInventoryCalculator
+        name: PharmacyInventoryCalculator-Windows
         path: dist/PharmacyInventoryCalculator.exe
-    
-    - name: Create Release (on tag push)
-      if: startsWith(github.ref, 'refs/tags/')
+
+  build-macos:
+    runs-on: macos-14  # macos-14 = Apple Silicon (M1/M2)
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pyinstaller
+
+    - name: Build macOS app
+      run: |
+        pyinstaller --onefile --windowed --name=PharmacyInventoryCalculator pharmacy_inventory_app.py
+
+    - name: Zip the macOS app
+      run: |
+        cd dist
+        zip -r PharmacyInventoryCalculator-macOS-Silicon.zip PharmacyInventoryCalculator
+
+    - name: Upload macOS artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: PharmacyInventoryCalculator-macOS-Silicon
+        path: dist/PharmacyInventoryCalculator-macOS-Silicon.zip
+
+  release:
+    needs: [build-windows, build-macos]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+
+    steps:
+    - name: Download Windows artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: PharmacyInventoryCalculator-Windows
+        path: artifacts/windows
+
+    - name: Download macOS artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: PharmacyInventoryCalculator-macOS-Silicon
+        path: artifacts/macos
+
+    - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
-        files: dist/PharmacyInventoryCalculator.exe
+        files: |
+          artifacts/windows/PharmacyInventoryCalculator.exe
+          artifacts/macos/PharmacyInventoryCalculator-macOS-Silicon.zip
         body: |
           ## Pharmacy Inventory Calculator
-          
-          ### Download and Run
-          1. Download `PharmacyInventoryCalculator.exe` below
-          2. Double-click to run (no installation needed)
-          3. Select your 3 Excel input files
-          4. Click "Process Inventory"
-          5. Get your results!
-          
-          ### What's New in This Version
+
+          ### Downloads
+          | Platform | File |
+          |----------|------|
+          | Windows | `PharmacyInventoryCalculator.exe` |
+          | macOS (Apple Silicon M1/M2/M3) | `PharmacyInventoryCalculator-macOS-Silicon.zip` |
+
+          ### How to Run
+          **Windows:**
+          1. Download `PharmacyInventoryCalculator.exe`
+          2. Double-click to run — no installation needed
+
+          **macOS (Apple Silicon):**
+          1. Download and unzip `PharmacyInventoryCalculator-macOS-Silicon.zip`
+          2. Right-click the app → **Open** (required on first launch to bypass Gatekeeper)
+          3. If you see a security warning, go to **System Settings → Privacy & Security** and click **Open Anyway**
+
+          ### What This App Does
           - Automated inventory calculations
           - Reorder quantity optimization
           - Stock days prediction
-          - User-friendly Windows interface
-          
+          - User-friendly desktop interface
+
           ### System Requirements
-          - Windows 7 or higher
-          - No Python installation required
-          - Works offline
-          
-          ### Security
+          - **Windows:** Windows 7 or higher
+          - **macOS:** macOS 12 (Monterey) or higher, Apple Silicon (M1/M2/M3)
+          - No Python installation required on either platform
+          - Works fully offline
+
+          ### Security & Privacy
           - All processing happens locally on your computer
           - No data is sent to the internet
           - Safe for sensitive pharmaceutical data
-          
-          For help, see the User Guide in the repository.
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
