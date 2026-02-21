@@ -282,8 +282,13 @@ class PharmacyInventoryApp:
             )
             
             if result:
-                import os
-                os.startfile(self.output_file.get())
+                import os, sys, subprocess
+                if sys.platform == "win32":
+                    os.startfile(self.output_file.get())
+                elif sys.platform == "darwin":
+                    subprocess.call(["open", self.output_file.get()])
+                else:
+                    subprocess.call(["xdg-open", self.output_file.get()])
             
         except Exception as e:
             self.progress.stop()
